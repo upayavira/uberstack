@@ -1,0 +1,69 @@
+#!/bin/bash
+
+########################################################################
+# Gather Parameters
+
+if [ -z $2 ]; then
+  echo "ust: Uberstack"
+  echo "ust <cmd> <uber stack> [<environment>]"
+  exit
+fi
+
+if [ -z $UBER_HOME ]; then
+  UBER_HOME=$(cd `dirname $0`/..; pwd)
+  echo "Using UBER_HOME=$UBER_HOME"
+fi
+
+while getopts ":x:" OPT; do
+  case $OPT in
+    x) EXCLUDE_STACK=$OPTARG ;;
+  esac
+done
+
+ACTION=$1
+UBER=$2
+ENV=$3
+
+if [ -z $ENV ]; then
+  ENV=local
+fi
+
+if [ "$ACTION" = "up" ]; then
+  CMD="up -d"
+elif [ "$ACTION" = "rm" ]; then
+  if [ "$ENV" != "local" ]; then
+    read -p "Retype uberstack name to confirm deletion: " UBER_CONFIRM
+    if [ "$UBER_CONFIRM" != "$UBER" ]; then
+      echo "Confirmation failed, quitting"
+      exit 1
+    fi
+  fi
+  CMD="rm --force"
+elif [ "$ACTION" = "ls" ]; then
+  echo "Stacks:"
+  echo "-------"
+  ls stacks
+  echo "Uberstacks:"
+  echo "-----------"
+  ls uberstacks
+  exit
+else
+  echo "Unknown action: $ACTION"
+  exit 1
+fi
+
+########################################################################
+# Actually do it
+
+cd $UBER_HOME
+
+STACKS=$(cat uberstacks/${UBER}/stacks.conf)
+
+for STACK in ${STACKS}; do
+  if [ "$STACK" != "$EXCLUDE_STACK" ]; then
+  rancher-compose --file stacks/${STACK}/docker-compose.yml \
+                  --rancher-file stacks/${STACK}/rancher-compose.yml \
+		  --env-file uberstacks/${UBER}/$ENV.env \
+		  $CMD
+  fi
+done
