@@ -22,6 +22,9 @@ UBER\_HOME points to a directory that contains two directories:
    uberstack contains a stacks.conf file, naming one stack per line,
    and any set of \*.env files. Env files define configurations for
    specific environments, such as `local`, `dev`, `staging`, `prod`.
+   If a stack in stacks.conf begins with an @, it will be treated
+   as a reference to another uberstack - all stacks for that uberstack
+   will be included.
 
 Usage
 -----

@@ -3,15 +3,15 @@
 ########################################################################
 # Gather Parameters
 
+if [ -z $UBER_HOME ]; then
+  UBER_HOME=$(cd `dirname $0`/..; pwd)
+fi
+echo "Using UBER_HOME=$UBER_HOME"
+
 if [ -z $2 ]; then
   echo "ust: Uberstack"
   echo "ust <cmd> <uber stack> [<environment>]"
   exit
-fi
-
-if [ -z $UBER_HOME ]; then
-  UBER_HOME=$(cd `dirname $0`/..; pwd)
-  echo "Using UBER_HOME=$UBER_HOME"
 fi
 
 while getopts ":x:" OPT; do
@@ -51,19 +51,45 @@ else
   echo "Unknown action: $ACTION"
   exit 1
 fi
+########################################################################
+# Check variables
+REQUIRED_VARIABLES=$(cat uberstacks/${UBER}/required.conf 2>/dev/null)
+
+. uberstacks/${UBER}/$ENV.env
+
+for VAR in $REQUIRED_VARIABLES; do
+  if [ -z ${!VAR} ]; then
+    MISSING=1
+    echo "Undefined, required variable: ${VAR}"
+  fi
+done
+if [ ! -z $MISSING ]; then
+  exit 1
+fi
 
 ########################################################################
 # Actually do it
 
-cd $UBER_HOME
 
-STACKS=$(cat uberstacks/${UBER}/stacks.conf)
+UBERSTACKS=$(cat uberstacks/${UBER}/stacks.conf | grep "^@" | sed "s/^@//")
+STACKS=$(cat uberstacks/${UBER}/stacks.conf | grep -v "^@")
+
+for UBERSTACK in ${UBERSTACKS}; do
+  echo $0 $ACTION $UBERSTACK $ENV
+  $0 $ACTION $UBERSTACK $ENV
+done
+
+cd $UBER_HOME
 
 for STACK in ${STACKS}; do
   if [ "$STACK" != "$EXCLUDE_STACK" ]; then
-  rancher-compose --file stacks/${STACK}/docker-compose.yml \
-                  --rancher-file stacks/${STACK}/rancher-compose.yml \
-		  --env-file uberstacks/${UBER}/$ENV.env \
-		  $CMD
-  fi
+    PROJECT=${STACK%%:*}
+    STACK=${STACK##*:}
+    echo Deploying $STACK to $PROJECT
+    rancher-compose --file stacks/${STACK}/docker-compose.yml \
+                    --rancher-file stacks/${STACK}/rancher-compose.yml \
+                    --project-name ${PROJECT} \
+                    --env-file uberstacks/${UBER}/$ENV.env \
+                    $CMD
+   fi
 done
